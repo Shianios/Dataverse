@@ -1,0 +1,56 @@
+C:\users\loizos\anaconda3\lib\site-packages\scipy\optimize\_minimize.py
+
+at line ~ 45 add (under function definition, before comment):
+
+    if options != None and 'bh_options' in options.keys():
+        func = fun
+        bh_options = options['bh_options']
+        meth_options = options.copy()
+        del meth_options['bh_options']
+        meth_options['args'] = args
+        meth_options['jac'] = jac
+        meth_options['hess'] = hess
+        meth_options['hessp'] = hessp
+        meth_options['bounds'] = bounds
+        meth_options['constraints'] = constraints
+        meth_options['tol'] = tol
+        meth_options['callback'] = callback
+
+at line ~585+13 modify as:
+
+    if meth == '_custom':
+        ### MOD ###
+        if method.__name__ == 'basinhopping':
+            if 'niter' in bh_options.keys(): niter = bh_options['niter']
+            else: niter = 100
+            if 'T' in bh_options.keys(): T = bh_options['T']
+            else: T = 1.
+            if 'stepsize' in bh_options.keys(): stepsize = bh_options['stepsize']
+            else: stepsize = 0.5
+            if 'minimizer_kwargs' in bh_options.keys(): 
+                minimizer_kwargs = bh_options['minimizer_kwargs']
+                minimizer_kwargs = {**minimizer_kwargs, **meth_options}
+            else: minimizer_kwargs = options
+            if 'take_step' in bh_options.keys(): take_step = bh_options['take_step']
+            else: take_step = None
+            if 'accept_test' in bh_options.keys(): accept_test = bh_options['accept_test']
+            else: accept_test = None
+            if 'callback' in bh_options.keys(): callback_b = bh_options['callback']
+            else: callback_b = None
+            if 'interval' in bh_options.keys(): interval = bh_options['interval']
+            else: interval = 50
+            if 'disp' in bh_options.keys(): disp = bh_options['disp']
+            else: disp = False
+            if 'niter_success' in bh_options.keys(): niter_success = bh_options['niter_success']
+            else: niter_success = None
+            if 'seed' in bh_options.keys(): seed = bh_options['seed']
+            else: seed = None
+            res = method(func, x0, niter, T, stepsize, minimizer_kwargs, take_step, 
+                   accept_test, callback_b, interval, disp, niter_success, seed)
+            
+            return res
+        else:
+            ### END ###
+            return method(fun, x0, args=args, jac=jac, hess=hess, hessp=hessp,
+                      bounds=bounds, constraints=constraints,
+                      callback=callback, **options)

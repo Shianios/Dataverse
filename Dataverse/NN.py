@@ -35,7 +35,7 @@ def encode_categorical_S_hot(df, features):
     return results
 
 #%% Import data and create sample. 
-name = 'adult.csv'
+name = 'adult.data'
 dir_p = 'data'
 
 headers = ['age','workclass','fnlwgt','education','education-num','marital-status','occupation',
@@ -237,14 +237,16 @@ with tf.Session() as sess:
 #%% adalt.test Data set
     '''
         To Do: This Should be inside a method and only change the name of the data set at call.
+                Also fix issue with dots in the income class of adalt.test
     '''
     name = 'adult.test'
-    test_frame = Import_.import_data(name, dir_p = dir_p, headers = headers, save = True)
+    income_classes = [' <=50K.', ' >50K.']
+    test_frame = Import_.import_data(name, dir_p = dir_p, headers = headers, save = False)
     test_frame = test_frame.replace({' Husband':'Spouce', ' Wife':'Spouce'})
     del test_frame['education']
     test_frame = test_frame.dropna(axis = 0)
     to_encode = test_frame['income'].copy()
-    
+
     test_labels = encode_categorical_S_hot(to_encode, income_classes)
     famd_test = famd.fit(test_frame)
     vecs_test = pd.DataFrame(famd_test.row_coordinates(test_frame))
@@ -262,11 +264,13 @@ with tf.Session() as sess:
     
     targets = []
     for i in range(test_labels.shape[0]):
-        if test_labels.iloc[i,0] == 1: targets.append(0)
-        elif test_labels.iloc[i,0] == 0 and test_labels.iloc[i,1] == 1 : targets.append(1)
+        if test_labels.iloc[i,0] == 1.: targets.append(0)
+        elif test_labels.iloc[i,0] == 0. and test_labels.iloc[i,1] == 1. : targets.append(1)
         else: targets.append(-1)
     targets = np.array(targets).astype(np.int32)
-    
+    print(targets)
+    print(predict)
+
     #print(test_labels)
     conf_matrix = metrics.confusion_matrix(targets, predict)
     f1 = metrics.f1_score(targets, predict)

@@ -41,7 +41,7 @@ dir_p = 'data'
 headers = ['age','workclass','fnlwgt','education','education-num','marital-status','occupation',
            'relationship','race','sex','capital-gain','capital-loss','hours-per-week','native-country',
            'income']
-income_classes = [' <=50K.', ' >50K.']
+income_classes = [' <=50K', ' >50K']
 
 data_frame = Import_.import_data(name, dir_p = dir_p, headers = headers, save = False)
 data_frame = data_frame.replace({' Husband':'Spouce', ' Wife':'Spouce'})

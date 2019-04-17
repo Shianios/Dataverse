@@ -38,17 +38,16 @@ data_frame = data_frame.drop(index = ind_to_replace)
 indices = np.array(data_frame.index.values).astype(np.int64)
 samples = sp.k_folds(indices, samples = 10, dir_p = dir_p, save_sample = False)
 
+''' The part below should be substituted by Utiilities preprocess method '''
 train_data = data_frame.loc[samples.iloc[:,:-1].values.flatten(),:]
 test_data = data_frame.loc[samples.iloc[:,-1].values.flatten(),:]
-
 to_encode = pd.DataFrame(train_data['income'].copy(), columns=['income'])
 train_target, fetures = Utilities.encode_categorical(to_encode)
-
 to_encode = pd.DataFrame(test_data['income'].copy(), columns=['income']) #test_data['income'].copy()
 test_target, _ = Utilities.encode_categorical(to_encode, fetures)
-
 train_data = train_data.drop(columns = ['income'])
 test_data = test_data.drop(columns = ['income'])
+
 #%%
 # Use FAMD (Factor Analysis for Mixed Data), to reduse the dimensions of the data set
 # and convert categorical data to numeric form.
@@ -66,11 +65,10 @@ famd_train = famd.fit(train_data)
 vecs_train = famd_train.row_coordinates(train_data)
 famd_test = famd.fit(test_data)
 vecs_test = famd_test.row_coordinates(test_data)
-'''scaler = preprocessing.StandardScaler()
-vecs_train = pd.DataFrame(scaler.fit_transform(vecs_train), columns = vecs_train.columns)
-vecs_test = pd.DataFrame(scaler.transform(vecs_test), columns = vecs_test.columns)'''
+
 vecs_train = pd.DataFrame(preprocessing.normalize(vecs_train, norm = 'l2', axis = 1), columns = vecs_train.columns)
 vecs_test = pd.DataFrame(preprocessing.normalize(vecs_test, norm = 'l2', axis = 1), columns = vecs_test.columns)
+''' end of substitution '''
 
 #%% Model
 # fit Boosted Tree model on training data

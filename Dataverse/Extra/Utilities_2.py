@@ -39,13 +39,14 @@ def Preprocess(data_frame, target = None, method = 'FAMD', samples = None,
     # If no target supplied get as target the last column of df
     if not target: target = data_frame.columns.values.tolist()[-1] 
     
-    ''' See below for this, there is a problem for now with Dummy '''
+    ''' See below for this issue, there is a problem for now with Dummy '''
     if method == 'Dummy': 
         print('Dummy is not functionning proberly.')
-        #method = 'PCA'
+        method = 'PCA'
+    
     
     if samples is not None: 
-        ''' Use different encoding. sklearn LabelBinarizer or OneHotEncoder'''
+        ''' Use different encoding method. sklearn LabelBinarizer or OneHotEncoder'''
         
         # Sample the data set, Split to training and testing sets.
         train_data = data_frame.loc[samples.iloc[:,:-1].values.flatten(),:]
@@ -165,6 +166,7 @@ def Preprocess(data_frame, target = None, method = 'FAMD', samples = None,
                     the dummy data frame will be different. Also this issue will create problems
                     with Tensorflow's placeholders.
                 '''
+                
                 try:
                     vecs_train = pd.DataFrame(scaler.transform(train_data), columns = train_data.columns)
                     vecs_test = pd.DataFrame(scaler.transform(test_data), columns = test_data.columns)

@@ -52,10 +52,7 @@ vecs_train, train_target, vecs_test, test_target, mapper, target = Utilities.Pre
                                                                         mapper = None, 
                                                                         num_components = 3, 
                                                                         scaler = None)
-print(train_target)
-print(test_target)
-print(data_frame.loc[test_target.index[0], 'income'])
-a
+
 #%% Network and optimization parameters
 num_input = vecs_train.shape[1]
 num_output = 2  

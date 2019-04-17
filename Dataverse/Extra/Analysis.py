@@ -103,6 +103,7 @@ print()
 # columns (veriables) to the original data frame. Also we want to remove the mean from all of
 # our columns and scale the values to have unit variance. We can use sklearn StandardScaler for this.
 
+''' The part below should be substituted by Utiilities preprocess method '''
 dummy_data = pd.get_dummies(data_frame).astype('float64')
 dummy_data['income'] = dummy_data['income_ >50K']
 del dummy_data['income_ <=50K']
@@ -127,6 +128,7 @@ test_data = test_data.drop(columns = ['income'])
 scaler = preprocessing.StandardScaler()
 train_data = pd.DataFrame(scaler.fit_transform(train_data), columns = train_data.columns)
 test_data = scaler.transform(test_data)
+''' end of substitution '''
 
 # Build the model
 model = linear_model.LogisticRegression(solver = 'lbfgs')

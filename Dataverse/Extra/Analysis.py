@@ -10,107 +10,12 @@ import pandas as pd
 import Import_
 import Sampling
 import sklearn.preprocessing as preprocessing
-import matplotlib
 import matplotlib.pyplot as plt
 import os
 import sklearn.linear_model as linear_model
 import sklearn.metrics as metrics
+import Utilities
 
-#%% 
-''' 
-    The 4 functions need to be placed in diferent file to be callables from other modules.
-'''
-def encode_categorical(df):
-    
-    result = df.copy()
-    encoders = {}
-    for column in result.columns:
-        if result.dtypes[column] == np.object:
-            encoders[column] = preprocessing.LabelEncoder()
-            result[column] = encoders[column].fit_transform(result[column])
-    return result, encoders
-
-def Correlation(data, method = 'P'):
-    
-    if method == 'P': corr_ = data.corr(method='pearson')
-    elif method == 'S': corr_ = data.corr(method='spearman')
-    else : corr_ = data.corr(method='kendall')
-    
-    return corr_
-
-# The following 2 methods were taken from 
-# https://matplotlib.org/gallery/images_contours_and_fields/image_annotated_heatmap.html
-def heatmap(data, row_labels, col_labels, ax=None,
-            cbar_kw={}, cbarlabel="", **kwargs):
-    
-    if not ax:
-        ax = plt.gca()
-
-    # Plot the heatmap
-    im = ax.imshow(data, **kwargs)
-
-    # Create colorbar
-    cbar = ax.figure.colorbar(im, ax=ax, **cbar_kw)
-    cbar.ax.set_ylabel(cbarlabel, rotation=-90, va="bottom")
-
-    # We want to show all ticks...
-    ax.set_xticks(np.arange(data.shape[1]))
-    ax.set_yticks(np.arange(data.shape[0]))
-    # ... and label them with the respective list entries.
-    ax.set_xticklabels(col_labels)
-    ax.set_yticklabels(row_labels)
-
-    # Let the horizontal axes labeling appear on bottom.
-    ax.tick_params(top=True, bottom=False,
-                   labeltop=False, labelbottom=True)
-
-    # Rotate the tick labels and set their alignment.
-    plt.setp(ax.get_xticklabels(), rotation=75, ha="right",
-             rotation_mode="anchor")
-
-    # Turn spines off and create white grid.
-    for edge, spine in ax.spines.items():
-        spine.set_visible(False)
-
-    ax.set_xticks(np.arange(data.shape[1]+1)-.5, minor=True)
-    ax.set_yticks(np.arange(data.shape[0]+1)-.5, minor=True)
-    ax.grid(which="minor", color="w", linestyle='-', linewidth=1)
-    ax.tick_params(which="minor", bottom=False, left=False)
-
-    return im, cbar
-
-def annotate_heatmap(im, data=None, valfmt="{x:.2f}", textcolors=["black", "white"],
-                     threshold=None, **textkw):
-
-    if not isinstance(data, (list, np.ndarray)):
-        data = im.get_array()
-
-    # Normalize the threshold to the images color range.
-    if threshold is not None:
-        threshold = im.norm(threshold)
-    else:
-        threshold = im.norm(data.max())/2.
-
-    # Set default alignment to center, but allow it to be
-    # overwritten by textkw.
-    kw = dict(horizontalalignment="center",
-              verticalalignment="center")
-    kw.update(textkw)
-
-    # Get the formatter in case a string is supplied
-    if isinstance(valfmt, str):
-        valfmt = matplotlib.ticker.StrMethodFormatter(valfmt)
-
-    # Loop over the data and create a `Text` for each "pixel".
-    # Change the text's color depending on the data.
-    texts = []
-    for i in range(data.shape[0]):
-        for j in range(data.shape[1]):
-            kw.update(color=textcolors[im.norm(data[i, j]) > threshold])
-            text = im.axes.text(j, i, valfmt(data[i, j], None), **kw)
-            texts.append(text)
-
-    return texts
 #%% 
 # We compute the correlations between the fetures and produce a correlation matrix
 dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -120,21 +25,22 @@ dir_p = 'data'
 headers = ['age','workclass','fnlwgt','education','education-num','marital-status','occupation',
            'relationship','race','sex','capital-gain','capital-loss','hours-per-week','native-country',
            'income']
-corr_coef = 'P'
-
-data_frame = Import_.import_data(name, dir_p = dir_p, headers = headers, save = True)
-data, _ = encode_categorical(data_frame)
-corr_ = Correlation(data, corr_coef)
-
 
 colormaps = ['viridis', 'plasma', 'inferno', 'magma', 'spring', 
              'summer', 'autumn', 'winter', 'cool']
 # For more options see https://matplotlib.org/users/colormaps.html
+
+corr_coef = 'P'
+
+data_frame = Import_.import_data(name, dir_p = dir_p, headers = headers, save = True)
+data, encoders = Utilities.encode_categorical(data_frame)
+corr_ = Utilities.Correlation(data, corr_coef)
+
 # Plot Correlation matrix
 fig = plt.figure(figsize=(10,10))
 ax = fig.add_subplot(1,1,1)
-im, cbar = heatmap(corr_, corr_.columns, corr_.columns, cmap=colormaps[0], ax = ax)
-texts = annotate_heatmap(im, valfmt="{x:.2f}")
+im, cbar = Utilities.heatmap(corr_, corr_.columns, corr_.columns, cmap=colormaps[0], ax = ax)
+texts = Utilities.annotate_heatmap(im, valfmt="{x:.2f}")
 fig.tight_layout()
 fig.savefig(dir_path+'Initial Correlation Corr Coef_' + corr_coef + '.png')
 
@@ -148,14 +54,14 @@ fig.savefig(dir_path+'Initial Correlation Corr Coef_' + corr_coef + '.png')
 
 data_frame = data_frame.replace({' Husband':'Spouce', ' Wife':'Spouce'})
 del data_frame['education']
-data, features = encode_categorical(data_frame)
-corr_ = Correlation(data, corr_coef)
+data, features = Utilities.encode_categorical(data_frame)
+corr_ = Utilities.Correlation(data, corr_coef)
 
 # Create new correlation matrix
 fig2 = plt.figure(figsize=(10,10))
 ax = fig2.add_subplot(1,1,1)
-im, cbar = heatmap(corr_, corr_.columns, corr_.columns, cmap=colormaps[0], ax = ax)
-texts = annotate_heatmap(im, valfmt="{x:.2f}")
+im, cbar = Utilities.heatmap(corr_, corr_.columns, corr_.columns, cmap=colormaps[0], ax = ax)
+texts = Utilities.annotate_heatmap(im, valfmt="{x:.2f}")
 fig2.tight_layout()
 fig2.savefig(dir_path+'Replaced data Correlation Corr Coef_' + corr_coef + '.png')
 
@@ -164,7 +70,7 @@ fig2.savefig(dir_path+'Replaced data Correlation Corr Coef_' + corr_coef + '.png
 # and skips them. No need for anythink fancy. If there is missing data or
 # a row of a continues feature contains non-numeric data, it is ignored.
 Means = data_frame.mean(axis = 0)
-print('Continues Data Meanns')
+print('Continues Data Means')
 print('--------------------')
 print(Means, '\n')
 print('--------------------')
@@ -197,7 +103,7 @@ print()
 # columns (veriables) to the original data frame. Also we want to remove the mean from all of
 # our columns and scale the values to have unit variance. We can use sklearn StandardScaler for this.
 
-dummy_data = pd.get_dummies(data_frame)
+dummy_data = pd.get_dummies(data_frame).astype('float64')
 dummy_data['income'] = dummy_data['income_ >50K']
 del dummy_data['income_ <=50K']
 del dummy_data['income_ >50K']
@@ -223,7 +129,45 @@ train_data = pd.DataFrame(scaler.fit_transform(train_data), columns = train_data
 test_data = scaler.transform(test_data)
 
 # Build the model
-model = linear_model.LogisticRegression()
+model = linear_model.LogisticRegression(solver = 'lbfgs')
+model.fit(train_data, train_target)
+
+# Make predictions on test data and compute confusion matrix and F1 score.
+predict = model.predict(test_data)
+conf_matrix = metrics.confusion_matrix(test_target, predict)
+f1 = metrics.f1_score(test_target, predict)
+
+# Plot confusion matrix
+fig3 = plt.figure(figsize=(6,6))
+ax = fig3.add_subplot(1,1,1)
+im, cbar = Utilities.heatmap(conf_matrix, features['income'].classes_, 
+                   features['income'].classes_, cmap=colormaps[0], ax = ax)
+texts = Utilities.annotate_heatmap(im, valfmt="{x:.2f}")
+
+ax.set_title('Confussion Matrix with F1:'+ str("{0:.4f}".format(f1)))
+fig3.tight_layout()
+fig3.savefig(dir_path + 'Confusion matrix of Logistic Regression Corr Coef_' + 
+             corr_coef + '.png')
+
+#%%
+''' Test set
+name = 'adult.test'
+
+data_frame = Import_.import_data(name, dir_p = dir_p, headers = headers, save = True)
+data_frame = data_frame.replace({' Husband':'Spouce', ' Wife':'Spouce'})
+del data_frame['education']
+data, features = encode_categorical(data_frame)
+
+dummy_data = pd.get_dummies(data_frame)
+dummy_data['income'] = dummy_data['income_ >50K.']
+del dummy_data['income_ <=50K.']
+del dummy_data['income_ >50K.']
+
+test_data = dummy_data
+test_target = test_data.income
+test_data = test_data.drop(columns = ['income'])
+test_data = scaler.transform(test_data)
+
 model.fit(train_data, train_target)
 
 # Make predictions on test data and compute confusion matrix and F1 score.
@@ -239,11 +183,8 @@ ax = fig3.add_subplot(1,1,1)
 im, cbar = heatmap(conf_matrix, features['income'].classes_, 
                    features['income'].classes_, cmap=colormaps[0], ax = ax)
 texts = annotate_heatmap(im, valfmt="{x:.2f}")
-ax.set_title('Confussion Matrix with F1:'+ str(f1))
+ax.set_title('Test set confussion Matrix with F1:'+ str(f1))
 fig3.tight_layout()
 fig3.savefig(dir_path + 'Confusion matrix of Logistic Regression Corr Coef_' + 
              corr_coef + '.png')
-
-
-
-
+'''

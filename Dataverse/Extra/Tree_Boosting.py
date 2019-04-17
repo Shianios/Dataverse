@@ -13,20 +13,10 @@ import Import_
 import Sampling as sp
 import xgboost as xgb
 import sklearn.metrics as metrics
+import Utilities
 
 # For XGBoost see: https://xgboost.readthedocs.io/en/release_0.72/index.html
 # For prince see: https://github.com/kormilitzin/Prince
-
-#%% Similar as in Analysis but for series instead.
-def encode_categorical_S(df, encoders):
-    
-    result = df.copy()
-    encoders = []
-    if result.dtypes == np.object:
-        if not encoders:
-            encoders = preprocessing.LabelEncoder()
-        result = pd.DataFrame(encoders.fit_transform(result), columns = ['income'])
-    return result, encoders
 
 #%% Import data and create sample. 
 name = 'adult.data'
@@ -43,19 +33,19 @@ data_frame = data_frame.dropna(axis = 0)
 
 condition = data_frame.apply(lambda x: ' ?' in x.values, axis = 1)
 ind_to_replace = condition.index[condition].tolist()
-#data_frame.iloc[ind_to_replace,'income'].replace({' <=50K': '?', ' >50K': '?'}, inplace = True)
 data_frame = data_frame.drop(index = ind_to_replace)
 
 indices = np.array(data_frame.index.values).astype(np.int64)
 samples = sp.k_folds(indices, samples = 10, dir_p = dir_p, save_sample = False)
+
 train_data = data_frame.loc[samples.iloc[:,:-1].values.flatten(),:]
 test_data = data_frame.loc[samples.iloc[:,-1].values.flatten(),:]
 
-to_encode = train_data['income'].copy()
-train_target, fetures = encode_categorical_S(to_encode, None)
-#train_target = pd.DataFrame(labels.loc[samples.iloc[:,:-1].values.flatten(),:], columns = ['income'])
-to_encode = test_data['income'].copy()
-test_target, _ = encode_categorical_S(to_encode, fetures)
+to_encode = pd.DataFrame(train_data['income'].copy(), columns=['income'])
+train_target, fetures = Utilities.encode_categorical(to_encode)
+
+to_encode = pd.DataFrame(test_data['income'].copy(), columns=['income']) #test_data['income'].copy()
+test_target, _ = Utilities.encode_categorical(to_encode, fetures)
 
 train_data = train_data.drop(columns = ['income'])
 test_data = test_data.drop(columns = ['income'])
@@ -71,7 +61,6 @@ famd = pr.FAMD(
      engine='auto',
      random_state=None
  )
-
 
 famd_train = famd.fit(train_data)
 vecs_train = famd_train.row_coordinates(train_data)

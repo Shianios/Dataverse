@@ -7,3 +7,28 @@ of categories in a feature. Also care must be taken as to how we encode the data
 since if the ordering of features is different between two data sets, encoded with 
 the same encoder, then the a vector (e.g. [1,0,0,0]) will represent two
 different classes in each case, and that will mess the results.
+
+Try sklearn DictVectorizer.
+The problem with categorical data is that we should not introduce the notion of distance
+between two classes, as it is meaningless. We usually try to solve this via using
+large vector spaces where only one dimension of a vector is not zero, thus all 
+representations have the same distance between them.
+
+But the problem is not with the representation itself, but rathen with the mathematics
+used afterwards to process the data. If the maths are based on meatric structures, then yes
+the diference between two representations will have the notion of a distance. Instead of tring to 
+come up with representaions that all have the same distance (in a metric space) betwwen them 
+we can try and embedd the data inside a non metric space; that is a space that the notion of
+distance does not exist in the first place.
+
+Or we can try and introduce a distance function that is not a metric function. It appears that
+there is already some work in this lines of thought.
+
+https://pdfs.semanticscholar.org/22f9/f7b6f9e8b80d0d3399b47170f825e1562bd8.pdf
+http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.53.3688&rep=rep1&type=pdf
+
+look for: - KL divergence and infinite systems/probability spaces
+	  - random projection methods
+	  - extreme learning machines
+
+Finally for the non-constant vector sizes (dimension) try RTNN (recursive tensor neural networks).

@@ -45,7 +45,7 @@ samples = sp.k_folds(indices, samples = 10, dir_p = dir_p, save_sample = False)
 preprocess_methods = ['FAMD', 'PCA', 'Dummy']
 pre_meth = preprocess_methods[0]
 
-vecs_train, train_target, vecs_test, test_target, mapper, target = Utilities.Preprocess(
+vecs_train, train_target, vecs_test, test_target, target_encoders, mapper, target, scaler = Utilities.Preprocess(
                                                                         data_frame, 
                                                                         method = pre_meth, 
                                                                         samples = samples, 
@@ -110,6 +110,9 @@ biases = {
                                            maxval = 0.1, dtype=tf.float64))
 }
 
+print(vecs_train.shape)
+print(train_target.shape)
+a
 X = tf.placeholder(tf.float64, [None, num_input])     # training data
 Y = tf.placeholder(tf.float64, [None, num_output])    # labels
 x = np.array(vecs_train.values).astype(np.float64)
@@ -222,7 +225,7 @@ with tf.Session() as sess:
                                             method = pre_meth, 
                                             samples = None, 
                                             mapper = mapper, 
-                                            scaler = mapper,
+                                            scaler = scaler,
                                             target = target)
     
     x = np.array(vecs_test.values).astype(np.float64)

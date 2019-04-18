@@ -1,1 +1,9 @@
-We keep separated the updates to have a clear view of what was done after deadline
+We keep separated the updates to have a clear view of what was done after deadline.
+Replace files in original directory to run. (Or change dir path in import).
+
+Note: the solution is incomplite. We need to come up with a method of encoding
+categorigal data that, will be able to handle new unseen data and variable number
+of categories in a feature. Also care must be taken as to how we encode the data
+since if the ordering of features is different between two data sets, encoded with 
+the same encoder, then the a vactor (e.g. [1,0,0,0]) will represent two
+differnt classes in each case, and that will mess the results.

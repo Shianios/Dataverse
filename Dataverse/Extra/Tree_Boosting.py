@@ -53,8 +53,8 @@ test_data = test_data.drop(columns = ['income'])
 # and convert categorical data to numeric form.
 ''' Rename test to valid'''
 famd = pr.FAMD(
-     n_components=5,
-     n_iter=10,
+     n_components=8,
+     n_iter=100,
      copy=True,
      check_input=True,
      engine='auto',
@@ -62,21 +62,26 @@ famd = pr.FAMD(
  )
 
 famd_train = famd.fit(train_data)
-vecs_train = famd_train.row_coordinates(train_data)
+vecs_train = famd_train.row_coordinates(train_data).astype('float64')
 famd_test = famd.fit(test_data)
-vecs_test = famd_test.row_coordinates(test_data)
+vecs_test = famd_test.row_coordinates(test_data).astype('float64')
 
-vecs_train = pd.DataFrame(preprocessing.normalize(vecs_train, norm = 'l2', axis = 1), columns = vecs_train.columns)
-vecs_test = pd.DataFrame(preprocessing.normalize(vecs_test, norm = 'l2', axis = 1), columns = vecs_test.columns)
+vecs_train = pd.DataFrame(preprocessing.normalize(vecs_train, norm = 'l1', axis = 1), columns = vecs_train.columns)
+vecs_test = pd.DataFrame(preprocessing.normalize(vecs_test, norm = 'l1', axis = 1), columns = vecs_test.columns)
+
+#scaler = preprocessing.StandardScaler()
+#vecs_train = pd.DataFrame(scaler.fit_transform(vecs_train), columns = vecs_train.columns)
+#vecs_test = pd.DataFrame(scaler.transform(vecs_test), columns = vecs_train.columns)
 ''' end of substitution '''
 
 #%% Model
 # fit Boosted Tree model on training data
 obs = ['binary:logistic', 'binary:hinge']
-model = xgb.XGBClassifier(max_depth = 5, n_estimators=200, objective = obs[0])
-model = model.fit(vecs_train, np.ravel(train_target.values))
+model = xgb.XGBClassifier(max_depth = 4, n_estimators=500, objective = obs[0],
+                          booster = 'gbtree')
+model = model.fit(vecs_train.values, np.ravel(train_target.values))
 
-predict = model.predict(vecs_test)
+predict = model.predict(vecs_test.values)
 
 conf_matrix = metrics.confusion_matrix(test_target, predict)
 f1 = metrics.f1_score(test_target, predict)
@@ -89,7 +94,7 @@ d_train = xgb.DMatrix(vecs_train)
 d_test = xgb.DMatrix(vecs_test)
 print(d_train)
 param = {'max_depth':2, 'eta':1, 'silent':1, 'objective':'binary:logistic'}
-watchlist = [(d_test, 'eval'), (d_train, 'train')]
+watchlist = [(vecs_test, 'eval'), (vecs_train, 'train')]
 num_round = 2
 model1 = xgb.train(param, d_train, num_round, watchlist)
 '''

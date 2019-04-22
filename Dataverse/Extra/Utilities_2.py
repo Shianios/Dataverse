@@ -11,68 +11,167 @@ import prince as pr
 import sklearn.preprocessing as preprocessing
 import matplotlib
 import matplotlib.pyplot as plt
+import itertools as it
 
-def encode_categorical(df, encode_method = 'Bin', encoder = None):
+''' All of the function associated with preprocessing should be in a class to
+    avoid returning all of those variables'''
+# Decorator to convert feeded data to pandas dataframe when needed.
+def To_Frame(func):
+    def convert(data,*args,**kwargs):
+        if not isinstance(data, pd.DataFrame): 
+            print('Data is not a pandas DataFrame. Will change to DataFrame')
+            if isinstance(data, pd.Series) :
+                print('Series detected')
+                data = data.to_frame().copy()
+            
+        else : data = pd.DataFrame(data).copy()
     
-    # If proper encoders are supplied fitting is skipped, else an encoder is
-    # fitted based on the method.
-    # Bin - sklearn LabelBinarizer. Returns one-hot encoded vectors. Works for all data types.
-    # Series - sklearn LabelEncoder. Returns single scalar numbers. Works for all data types.
-    # Hot _ sklearn OneHotEncoder. Same as Bin but only works with numeric data.
+        return func(data,**kwargs)
     
-    '''if not isinstance(encoders, dict): 
-        print('Encoders are not a dict. Will change to empty dict')
-        encoders = {}'''
-    if not isinstance(df, pd.DataFrame): 
-        print('Data is not a pandas DataFrame. Will change to DataFrame')
-        result = pd.DataFrame(df)
-    else:
-        result = df.copy()
-        
-    '''
-    for column in result.columns:
-        if result.dtypes[column] == np.object:
-            try :
-                result[column] = encoders[column].transform(result[column])
-            except:
-                if encode_method == 'Binary': encoders[column] = preprocessing.LabelBinarizer()
-                elif encode_method == 'Series': encoders[column] = preprocessing.LabelEncoder()
-                elif encode_method == 'Hot': encoders[column] = preprocessing.OneHotEncoder()
-                else:
-                    print('Encoder Method not valid. Set to Binary')
-                    encoders[column] = preprocessing.LabelBinarizer()
-                result[column] = encoders[column].fit_transform(result[column])
-                if isinstance(result[column])
-                print(type(result[column]))
-                a'''
-    try :
-        result = encoder.transform(result)
-    except:
-        if encode_method == 'Binary': encoder = preprocessing.LabelBinarizer()
-        elif encode_method == 'Series': encoder = preprocessing.LabelEncoder()
-        elif encode_method == 'Hot': encoder = preprocessing.OneHotEncoder()
+    return convert
+
+@To_Frame       
+def  Dictionaries(data):
+    
+    columns_dict = {}
+
+    for column in data.columns:
+        if data.dtypes[column] == np.object:
+            # Get all unique categorical veriables of all columns 
+            values = data[column].unique()
+            # sklearn endoder first sort data and then encode. If we do not sort
+            # the return dataframe will have incorrect headings.
+            values.sort()       
+            columns_dict[column] = [x for x in values]
+            ''' [x.lower() for x in values] - Add different function to convert all data
+                to lower case and remove any white psaces or punctuation marks. '''
+    
+    return columns_dict
+
+def Encode(data, method = 'Binary'):
+    
+    mappings = {}
+    for key in data.keys():
+        if method == 'Binary': encoder = preprocessing.LabelBinarizer()
+        elif method == 'Series': encoder = preprocessing.LabelEncoder()
         else:
             print('Encoder Method not valid. Set to Binary')
             encoder = preprocessing.LabelBinarizer()
-        result = encoder.fit_transform(result)
-        
-        if encode_method == 'Binary' and len(np.squeeze(result).shape) ==1:
-            result = np.hstack((result, 1 - result))
-        
-    return result, encoder
+            method = 'Binary'
 
+        mappings[key] = encoder.fit(data[key])
+        
+    mappings['method'] = method
+
+    return mappings
+
+@To_Frame
+def Fit_Encode(data, method = 'Binary', mappings = None, columns_dict = None):
+    
+    if not mappings:
+        print('No mapps were supplied. Creating maps.')
+        if not columns_dict:
+            print('No column dictionaries supplied. Creating dics.')
+            columns_dict = Dictionaries(data)
+        
+        mappings = Encode(columns_dict, method)
+    
+    if not columns_dict:
+        print('No column dictionaries supplied. Creating dics.')
+        columns_dict = Dictionaries(data)
+    
+    if not isinstance(data, pd.DataFrame): 
+        print('Data is not a pandas DataFrame. Changing to DataFrame')
+        if isinstance(data, pd.Series) :
+            data = data.to_frame().copy()
+            
+        else : data = pd.DataFrame(data).copy()
+    
+    headers = []
+    for column in data.columns:
+        if data.dtypes[column] == np.object:
+            if mappings['method'] == 'Binary' :
+                names = ['_' + s for s in columns_dict[column]]
+                column_headers = [x+y for x, y in it.product([column], names)]
+                headers = headers + column_headers
+                
+            else : headers = headers + [column]
+            
+            c_encoding = mappings[column].transform(data[column].values)
+
+            if mappings['method'] == 'Binary' and len(np.squeeze(c_encoding).shape) == 1:
+                c_encoding = np.hstack((1 - c_encoding, c_encoding))
+            else:
+                c_encoding = np.squeeze(c_encoding)
+                if len(c_encoding.shape) == 1: c_encoding = c_encoding.reshape(-1,1)
+                
+            try:
+                res = np.append(res, c_encoding, axis = 1)
+            except:
+                res = c_encoding
+            
+        else: 
+            headers = headers + [column]
+            try:
+                res = np.append(res, data[column].values.reshape(-1,1), axis = 1)
+            except:
+                res = data[column].values.reshape(-1,1)
+
+    return pd.DataFrame(res, index = data.index, columns = headers), mappings, columns_dict
+
+@To_Frame
+def Remove(df, dictionaries = {}):
+    
+    data = df.copy()
+    for column in data.columns:
+        if data.dtypes[column] == np.object:
+            values = data[column].unique()
+            values = [x.lower() for x in values]
+            to_remove = list(set(values) - set(dictionaries[column]))
+            for x in to_remove:
+                data = data[data[column] != x]
+    
+    return data
+
+@To_Frame   
+def Normalization(data, method = 'l2', scaler = None):
+    
+    if method in ['l1', 'l2', 'max']:
+        scaler = None
+        data = pd.DataFrame(preprocessing.normalize(data,
+                                        norm = method, axis = 1),
+                                        index = data.index,
+                                        columns = data.columns)
+    
+    elif method == 'standard':
+        if not scaler : scaler = preprocessing.StandardScaler()
+        if data.values.shape[1] == 1:
+            data = pd.DataFrame(scaler.fit_transform(data.values.reshape[-1,1]),
+                                index = data.index,
+                                columns = data.columns)
+        else:
+            data = pd.DataFrame(scaler.fit_transform(data.values),
+                                index = data.index,
+                                columns = data.columns)
+    
+    return data, scaler
+
+''' Need to break to two methods, fisrt sampling (returning data and target sets)
+    and second fitting dimensionlity reduction'''
+@To_Frame  
 def Preprocess(data_frame, target = None, method = 'FAMD', samples = None, 
                mapper = None, num_components = 3, scaler = None,
                encode_method = 'Binary', target_encoder = None,
-               data_encoder = None, normalization = 'l2'):
+               data_encoder = None,  data_columns_dict = None, 
+               target_column_dict = None, groups = None, normalization = 'l2'):
     
     # If no target supplied get as target the last column of df
     if not target: target = data_frame.columns.values.tolist()[-1] 
     
-    ''' See below for this issue, there is a problem for now with Dummy '''
-    if method == 'Dummy': 
+    ''' TO DO: Fix PCA. '''
+    if method == 'PCA': 
         print('Dummy is not functionning proberly.')
-        method = 'PCA'
+        method = 'MFA'
     
     normalization = normalization.lower()
     if normalization not in ['l1', 'l2', 'max', 'standard', None]:
@@ -84,100 +183,93 @@ def Preprocess(data_frame, target = None, method = 'FAMD', samples = None,
         # Sample the data set, Split to training and testing sets.
         train_data = data_frame.loc[samples.iloc[:,:-1].values.flatten(),:]
         test_data = data_frame.loc[samples.iloc[:,-1].values.flatten(),:]
-
-        # Create taining labels. This will give us a encoding for each class based on method.
-        train_target, target_encoder = encode_categorical(train_data[target].copy(),
-                                                    encode_method = encode_method,
-                                                    encoder = target_encoder)
-    
-        # Create testing labels
-        test_target, _ = encode_categorical(test_data[target].copy(), encoder = target_encoder)
-    
-        # Drop the target column from data sets.
+        train_target = train_data[target].copy()
+        test_target = test_data[target].copy()
         train_data = train_data.drop(columns = [target])
         test_data = test_data.drop(columns = [target])
-        
+
+        # Encode the data sets
+        train_data, data_encoder, data_columns_dict = Fit_Encode(train_data, 
+                                                     method = encode_method)
+        test_data, _, _ = Fit_Encode(test_data, 
+                                     mappings = data_encoder,
+                                     columns_dict = data_columns_dict,
+                                     method = encode_method)
+        #print('Test','\n',train_data.iloc[0])
+        train_target, target_encoder, target_column_dict = Fit_Encode(train_target, 
+                                                     method = encode_method)
+        test_target, _, _ = Fit_Encode(test_target, 
+                                       mappings = target_encoder,
+                                       columns_dict = target_column_dict,
+                                       method = encode_method)
+
     else: # If no samples are supplied we process the entire data set as a whole.
         test_data = data_frame.copy()
-        test_target, target_encoders = encode_categorical(test_data[target].copy(), 
-                                                   encode_method = encode_method)
+        test_target = test_data[target].copy()
+        test_data = test_data.drop(columns = [target]) 
+        test_data, test_data_encoder, test_columns_dict = Fit_Encode(test_data, 
+                                                  mappings = data_encoder,
+                                                  columns_dict = data_columns_dict,
+                                                  method = encode_method)
+        print('Test Data Encoded')
+        test_target, test_target_encoder, _ = Fit_Encode(test_target, 
+                                 mappings = target_encoder,
+                                 columns_dict = target_column_dict,
+                                 method = encode_method)
+        print('Test targets encoded')
     
         # Drop the income column from data sets and get normalized vectors
-        test_data = test_data.drop(columns = [target])    
+           
     
-    if method == 'FAMD':
-        # No need to encode data for FAMD. If data only contains numbers, 
-        # method will exit with error.
+    if method == 'MFA':
+        
+        if not groups:
+            groups = {}
+            for key in data_columns_dict.keys():
+                names = ['_' + s for s in data_columns_dict[key]]
+                column_headers = [x+y for x, y in it.product([key], names)]
+                groups[key] = column_headers
         
         if not mapper: # Create FAMD mapper. 
+            print('No mapper found')
             ''' Consider passing **kwargs in Preprocess func. to pass in mappers. '''
-            mapper = pr.FAMD(
-                n_components = num_components,
-                n_iter=100,
-                #rescale_with_mean = True, # Does not work. Can use sklearn Standard scaller.
-                #rescale_with_std = True,
-                copy=True,
-                check_input=True,
-                engine='auto',
-                random_state=None
-            )
+            mfa = pr.MFA(
+                    groups = groups,
+                    n_components = num_components,
+                    n_iter=100,
+                    #rescale_with_mean = True, # Does not work. Can use sklearn Standard scaller.
+                    #rescale_with_std = True,
+                    copy=True,
+                    check_input=True,
+                    engine='auto',
+                    random_state=None
+                    )
         
+        print('Fitting MFA')
         if samples is not None: 
+
             # Vectors for training/test set
-            print()
-            famd_train = mapper.fit(train_data)
-            print('famd_train')
-            vecs_train = pd.DataFrame(famd_train.row_coordinates(train_data))
-            print('vecs_train')
-            print(mapper.get_params)
-            print(test_data.shape)
-            famd_test = mapper.transform(test_data)
-            print('famd_test')
-            vecs_test = pd.DataFrame(famd_test.row_coordinates(test_data))
-            print(vecs_train.shape)
-            print(ves_test.shape)
-            a
-            if normalization in ['l1', 'l2', 'max']:
-                print('Normalizing')
-                scaler = None
-                vecs_train = pd.DataFrame(preprocessing.normalize(vecs_train,
-                                        norm = normalization, axis = 1),
-                                        columns = vecs_train.columns)
-                
-                vecs_test = pd.DataFrame(preprocessing.normalize(vecs_test,
-                                    norm = normalization, axis = 1),
-                                    columns = vecs_test.columns)
-                print(vecs_train.shape)
-                print(ves_test.shape)
-                a
-            elif normalization == 'standard':
-                if not scaler : scaler = preprocessing.StandardScaler()
-                vecs_train = pd.DataFrame(scaler.fit_transform(vecs_train), columns = vecs_train.columns)
-                vecs_test = pd.DataFrame(scaler.fit_transform(vecs_test), columns = vecs_test.columns)
+            mapper = mfa.fit(train_data)
+            vecs_train = pd.DataFrame(mapper.row_coordinates(train_data))
+            vecs_test = pd.DataFrame(mapper.transform(test_data))
+            
+            vecs_train, scaler = Normalization(vecs_train, normalization, scaler)
+            vecs_test, scaler = Normalization(vecs_test, normalization, scaler)
        
-            return vecs_train, train_target, vecs_test, test_target, target_encoders, mapper, target, scaler
+            return vecs_train, train_target, vecs_test, test_target, data_columns_dict, target_column_dict, data_encoder, target_encoder, groups, target, mapper, scaler
         
         else:
             # Get the vectors created for the training set and normalise
-            famd_test = mapper.fit(test_data)
-            vecs_test = pd.DataFrame(famd_test.row_coordinates(test_data))
+            vecs_test = pd.DataFrame(mapper.transform(test_data))
             
-            if normalization in ['l1', 'l2', 'max']:
-                scaler = None
-                vecs_test = pd.DataFrame(preprocessing.normalize(vecs_test,
-                                    norm = normalization, axis = 1),
-                                    columns = vecs_test.columns)
-                
-            elif normalization == 'standard':
-                if not scaler : scaler = preprocessing.StandardScaler()
-                vecs_test = pd.DataFrame(scaler.fit_transform(vecs_test), columns = vecs_test.columns)
+            vecs_test, scaler = Normalization(vecs_test, normalization, scaler)
         
             ''' Consider returning a single dictionary with all parameters. Each case has 
                 different number of returned variables.'''
             
-            return vecs_test, test_target, target_encoders, mapper, target, scaler
+            return vecs_test, test_target, test_data_encoder, test_target_encoder, mapper, target, scaler
 
-    elif method == 'PCA': # PCA only works with numerical data. See below how we convert non numeric.
+    elif method == 'PCA':
         
         if not mapper:
             
@@ -193,10 +285,6 @@ def Preprocess(data_frame, target = None, method = 'FAMD', samples = None,
             )
         
         if samples is not None:
-            
-            train_data, data_endoder =  encode_categorical(train_data[target].copy(),
-                                                    encode_method = encode_method)
-            test_data, _ = encode_categorical(test_data[target].copy(), encoder = data_endoder)
     
             pca_train = mapper.fit(train_data )
             vecs_train = pd.DataFrame(pca_train.row_coordinates(train_data))
@@ -241,53 +329,6 @@ def Preprocess(data_frame, target = None, method = 'FAMD', samples = None,
 
             return vecs_test, test_target, mapper, target
         
-    elif method == 'Dummy':
-
-        labels = pd.get_dummies(data_frame[target]).astype('float64')
-        del data_frame[target]
-        data_frame = pd.get_dummies(data_frame).astype('float64')
-        
-        if samples is not None:
-            train_data = pd.get_dummies(train_data).astype('float64')
-            test_data = pd.get_dummies(test_data).astype('float64')
-            
-            if not scaler:
-                scaler = preprocessing.StandardScaler()
-                vecs_train = pd.DataFrame(scaler.fit_transform(train_data), columns = train_data.columns)
-                vecs_test = pd.DataFrame(scaler.transform(test_data), columns = test_data.columns)
-            else: 
-                '''
-                    !!! NOTE: Need to fix. If scaler is supplied but fitted to different dimensional
-                    data, it cannot be used and returns error. If test data do not contain
-                    a classes of any feature or contains new classes, the dimensions of
-                    the dummy data frame will be different. Also this issue will create problems
-                    with Tensorflow's placeholders.
-                '''
-                
-                try:
-                    vecs_train = pd.DataFrame(scaler.transform(train_data), columns = train_data.columns)
-                    vecs_test = pd.DataFrame(scaler.transform(test_data), columns = test_data.columns)
-                except:
-                    vecs_train = pd.DataFrame(scaler.fit_transform(train_data), columns = train_data.columns)
-                    vecs_test = pd.DataFrame(scaler.transform(test_data), columns = test_data.columns)
-       
-            return vecs_train, train_target, vecs_test, test_target, scaler, target
-        
-        else:
-            test_data = data_frame.copy()
-            test_target = labels
-            
-            if not scaler:
-                scaler = preprocessing.StandardScaler()
-                vecs_test = pd.DataFrame(scaler.fit_transform(test_data), columns = train_data.columns)
-            else:
-                try:
-                    vecs_test = pd.DataFrame(scaler.transform(test_data), columns = test_data.columns)
-                except:
-                    vecs_test = pd.DataFrame(scaler.fit_transform(test_data), columns = test_data.columns)
-            
-            return vecs_test, test_target, scaler, target
-
 def Correlation(data, method = 'P'):
     
     if method == 'P': corr_ = data.corr(method='pearson')

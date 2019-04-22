@@ -42,28 +42,29 @@ data_frame = data_frame.drop(index = ind_to_replace)
 indices = np.array(data_frame.index.values).astype(np.int64)
 samples = sp.k_folds(indices, samples = 10, dir_p = dir_p, save_sample = False)
 
-preprocess_methods = ['FAMD', 'PCA', 'Dummy']
+preprocess_methods = ['MFA', 'PCA']
 pre_meth = preprocess_methods[0]
+components = 14
 
-vecs_train, train_target, vecs_test, test_target, target_encoders, mapper, target, scaler = Utilities.Preprocess(
+vecs_train, train_target, vecs_test, test_target, data_columns_dict, target_column_dict, data_encoder, target_encoder, groups, target, mapper, scaler = Utilities.Preprocess(
                                                                         data_frame, 
                                                                         method = pre_meth, 
                                                                         samples = samples, 
                                                                         mapper = None, 
-                                                                        num_components = 3, 
+                                                                        num_components = components, 
                                                                         scaler = None)
 
 #%% Network and optimization parameters
 num_input = vecs_train.shape[1]
-num_output = 2  
-Epochs = 1
+num_output = 2
+Epochs = 10
 display_step = 10 #max(int(Epochs / 10),1)
-num_hidden = [12, 6]                     # For multidimensional layers pass tuples (Not possible in this ver.)
+num_hidden = [7,14]                     # For multidimensional layers pass tuples (Not possible in this ver.)
 drop_rate = 0.25                        # Drop rate of dropout layers
 learning_rate = 0.1                     # To use in GD
 opt = 'BH'                              # Choose between gradient discent 'GD' or BasinHopping 'BH' for optimizaton.
 opt_name = 'L-BFGS-B'                   # Optimizer in the second stage of BH
-maxiter = 20                           # For optimizer in BH
+maxiter = 20                            # For optimizer in BH
 niter = 10                              # BH iterations
 threshold = 0.1                         # Return label class if its prob is greatter than threshold.
 
@@ -76,9 +77,9 @@ tf.random.set_random_seed(7919)
 def multi_layer_perceptron(x, weights, biases):
 
     hidden_layer1 = tf.add(tf.matmul(x, weights['w_h1']), biases['b_h1'])
-    hidden_layer1 = tf.nn.tanh(hidden_layer1)
+    hidden_layer1 = tf.nn.sigmoid(hidden_layer1)
     hidden_layer2 = tf.add(tf.matmul(hidden_layer1, weights['w_h2']), biases['b_h2'])
-    hidden_layer2 = tf.nn.sigmoid(hidden_layer2)
+    hidden_layer2 = tf.nn.relu(hidden_layer2)
 
     drop_out = tf.layers.dropout(hidden_layer2, rate = drop_rate)
     
@@ -110,9 +111,6 @@ biases = {
                                            maxval = 0.1, dtype=tf.float64))
 }
 
-print(vecs_train.shape)
-print(train_target.shape)
-a
 X = tf.placeholder(tf.float64, [None, num_input])     # training data
 Y = tf.placeholder(tf.float64, [None, num_output])    # labels
 x = np.array(vecs_train.values).astype(np.float64)
@@ -138,7 +136,8 @@ For optimization try
 with tf.Session() as sess:
     writer = tf.summary.FileWriter(tf_path, sess.graph)
     loss_fun = 'softmax cross entropy'
-    loss_func = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=model, labels=Y))        
+    loss_func = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=model, labels=Y))
+    #loss_func = tf.reduce_mean(tf.losses.mean_squared_error(Y,tf.nn.softmax(model)))
     
     if opt == 'GD':
         opt_name = None
@@ -187,20 +186,18 @@ with tf.Session() as sess:
     x = np.array(vecs_test.values).astype(np.float64)
     predict, max_val = np.array(sess.run([tf.argmax(tf.nn.softmax(model), axis = 1), 
                                 tf.reduce_max(tf.nn.softmax(model), axis = 1)], feed_dict={X:x}))     
-      
-    predict = predict.astype(np.int32)
     
+    # The [1,0] vector coresponts to 0 index returned by argmax, whereas [0,1] to index1.
+    # If the index returned is 0 that is equivalent to have the label return as 1, so we use
+    # modular addition by 1 with mod 2.
+    predict = (predict.astype(np.int32) +1) % 2
+
     # If the max value is less than for example 10% we, interpret that the network couldn 't
     # identify the input. We do this in order to be aple to handle missing data.
     for i in range(len(max_val)):
         if max_val[i] < threshold: predict[i] = -1
-    
-    test_labels = []
-    for i in range(test_target.shape[0]):
-        if test_target.iloc[i,0] == 1: test_labels.append(0)
-        elif test_target.iloc[i,0] == 0 and test_target.iloc[i,1] == 1 : test_labels.append(1)
-        else: test_labels.append(-1)
-    test_labels = np.array(test_labels).astype(np.int32)
+
+    test_labels = np.array(test_target.iloc[:,0]).astype(np.int32)
 
     conf_matrix = metrics.confusion_matrix(test_labels, predict)
     f1 = metrics.f1_score(test_labels, predict)
@@ -212,18 +209,24 @@ with tf.Session() as sess:
 
     test_frame = Import_.import_data(name, dir_p = dir_p, headers = headers, save = False)
     test_frame = test_frame.replace({' Husband':'Spouce', ' Wife':'Spouce'})
+    test_frame = test_frame.replace({' <=50K.':' <=50K', ' >50K.':' >50K'})
     del test_frame['education']
     test_frame = test_frame.dropna(axis = 0)
     
-    # Remove None tht were replaced with ?.
+    # Remove None that were replaced with ?.
     condition = test_frame.apply(lambda x: ' ?' in x.values, axis = 1)
     ind_to_replace = condition.index[condition].tolist()
     test_frame = test_frame.drop(index = ind_to_replace)
     
-    vecs_test, test_target, mapper, _= Utilities.Preprocess(
+    vecs_test, test_target, test_data_encoder, test_target_encoder, mapper, target, scaler = Utilities.Preprocess(
                                             test_frame, 
                                             method = pre_meth, 
-                                            samples = None, 
+                                            samples = None,
+                                            data_columns_dict = data_columns_dict,
+                                            target_column_dict = target_column_dict,
+                                            data_encoder = data_encoder,
+                                            target_encoder = target_encoder,
+                                            groups = groups,
                                             mapper = mapper, 
                                             scaler = scaler,
                                             target = target)
@@ -232,21 +235,15 @@ with tf.Session() as sess:
     predict, max_val = np.array(sess.run([tf.argmax(tf.nn.softmax(model), axis = 1), 
                                 tf.reduce_max(tf.nn.softmax(model), axis = 1)], feed_dict={X:x}))
 
-    predict = predict.astype(np.int32)
-    
+    predict = (predict.astype(np.int32) + 1) % 2
+
     # If the max value is less than for example 10% we, interpret that the network couldn 't
     # identify the input. We do this in order to be aple to handle missing data.
     for i in range(len(max_val)):
         if max_val[i] < threshold: predict[i] = -1
-    
-    test_labels = []
-    for i in range(test_target.shape[0]):
-        if test_target.iloc[i,0] == 1: test_labels.append(0)
-        elif test_target.iloc[i,0] == 0 and test_target.iloc[i,1] == 1 : test_labels.append(1)
-        else: test_labels.append(-1)
-    test_labels = np.array(test_labels).astype(np.int32)
 
-    #print(test_labels)
+    test_labels = np.array(test_target.iloc[:,0]).astype(np.int32)
+
     conf_matrix = metrics.confusion_matrix(test_labels, predict)
     f1 = metrics.f1_score(test_labels, predict)
     print('Confussion Matrix for Test set:', '\n', conf_matrix)
